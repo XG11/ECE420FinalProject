@@ -1,4 +1,4 @@
 # ECE420FinalProject
-ECE420 Final Project__
-Xiaorui Gu Anay Koorapaty__
+ECE420 Final Project\
+Xiaorui Gu Anay Koorapaty\
 Object recognition based on SIFT
