@@ -71,6 +71,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     private boolean captured;
     //image captured
     private Mat image_captured;
+    private boolean isProcessing;
     // KCF Tracker variables
     //private TrackerKCF myTracker;
     //private Rect2d myROI = new Rect2d(0,0,0,0);
@@ -285,7 +286,16 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         //Log.d(TAG, "TrackerKCF onCameraFrame: "+ tracking_flag);
-
+        if(isProcessing){
+            return mRgba;
+        }
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                TextView testText = findViewById(R.id.testText);
+                testText.setText("");
+            }
+        });
         // Timer
         //long start = Core.getTickCount();
         // Grab camera frame in rgba and grayscale format
@@ -293,9 +303,12 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         // Grab camera frame in gray format
         mGray = inputFrame.gray();
         if(captured) {
+            isProcessing = true;
             image_captured = mGray.clone();
             Mat descriptors = FindDescriptors(image_captured);
+            //Get CENTROIDS ARRAY FROM PYTHON CODE TRAINING
             Mat vocab = Vocab(descriptors, centroids);
+            //LOAD_IN_ON_CREATE
             SVM svm = SVM.load("svm_model.xml"); //should be done in OnCreate()
             float label = svm.predict(vocab);
             //final String result = "";
@@ -318,6 +331,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 });
             }
             captured = false;
+            isProcessing = false;
         }
 //
         return mRgba;
