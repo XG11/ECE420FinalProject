@@ -168,7 +168,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         mOpenCvCameraView.setCameraIndex(0);
 
         mOpenCvCameraView.setVisibility(CameraBridgeViewBase.VISIBLE);
-
+        mOpenCvCameraView.setCameraPermissionGranted();
         // Force camera resolution, ignored since OpenCV automatically select best ones
         mOpenCvCameraView.setCvCameraViewListener(this);
     }
@@ -289,13 +289,13 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         if(isProcessing){
             return mRgba;
         }
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                TextView testText = findViewById(R.id.testText);
-                testText.setText("");
-            }
-        });
+//        runOnUiThread(new Runnable() {
+//            @Override
+//            public void run() {
+//                TextView testText = findViewById(R.id.testText);
+//                testText.setText("");
+//            }
+//        });
         // Timer
         //long start = Core.getTickCount();
         // Grab camera frame in rgba and grayscale format
@@ -305,13 +305,14 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         if(captured) {
             isProcessing = true;
             image_captured = mGray.clone();
-            Mat descriptors = FindDescriptors(image_captured);
+            //Mat descriptors = FindDescriptors(image_captured);
             //Get CENTROIDS ARRAY FROM PYTHON CODE TRAINING
-            Mat vocab = Vocab(descriptors, centroids);
+            //Mat vocab = Vocab(descriptors, centroids);
             //LOAD_IN_ON_CREATE
-            SVM svm = SVM.load("svm_model.xml"); //should be done in OnCreate()
-            float label = svm.predict(vocab);
+            //SVM svm = SVM.load("svm_model.xml"); //should be done in OnCreate()
+            //float label = svm.predict(vocab);
             //final String result = "";
+            float label = 0;
             if (label == 1){
                 runOnUiThread(new Runnable() {
                     @Override
@@ -326,10 +327,24 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     @Override
                     public void run() {
                         TextView testText = findViewById(R.id.testText);
-                        testText.setText("Object not Detected");
+                        testText.setText("Object Not Detected");
                     }
                 });
             }
+            try {
+                Thread.sleep(2000);  // Wait for 2 seconds
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            // Reset the text
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    TextView testText = findViewById(R.id.testText);
+                    testText.setText("");
+                }
+            });
             captured = false;
             isProcessing = false;
         }
