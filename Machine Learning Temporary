@@ -1,0 +1,167 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from hw5_utils import visualization, get_dataset_fixed
+
+
+
+class Stump():
+    # gettingdata and changing their type from tuple to array
+
+    def __init__(self, data, labels, weights=None):
+        '''
+        Initializes a stump (one-level decision tree) which minimizes
+        a weighted error function of the input dataset.
+
+        In this function, you will need to learn a stump using the weighted
+        datapoints. Each datapoint has 2 features, whose values are bounded in
+        [-1.0, 1.0]. Each datapoint has a label in {+1, -1}, and its importance
+        is weightedby a positive value.
+
+        The stump will choose one of the features, and pick the best threshold
+        in that dimension, so that the weighted error is minimized.
+
+        Arguments:
+            data: An ndarray with shape (n, 2). Values in [-1.0, 1.0].
+            labels: An ndarray with shape (n, ). Values are +1 or -1.
+            weights: An ndarray with shape (n, ). The weights of each
+                datapoint, all positive.
+        '''
+        # You may choose to use the following variables as a start
+
+        # The feature dimension which the stump will decide on
+        # Either 0 or 1, since the datapoints are 2D
+        dim_0_data = data[:, 0]
+        dim_1_data = data[:, 1]
+        zero_size = len(dim_0_data)
+        one_size = len(dim_1_data)
+        dim_0_data = np.append(dim_0_data, -1)
+        dim_0_data = np.append(dim_0_data, 1)
+        dim_1_data = np.append(dim_1_data, -1)
+        dim_1_data = np.append(dim_1_data, 1)
+        threshold = 0
+        dimension_flag = 0
+        min_loss = np.inf
+        #check thresholds in dimension 0
+        for i in range(0, len(dim_0_data)):
+            if(i < zero_size - 1):
+                mid = (dim_0_data[i] + dim_0_data[i+1])/2.0
+            elif(i == zero_size - 1):
+                continue
+            elif(i >= zero_size):
+                mid = dim_0_data[i]
+            loss = 0
+            for j in range(0, len(dim_0_data)):
+                if(dim_0_data[j] >= mid and labels[j] == -1):
+                    loss += weights[j]
+                elif(dim_0_data[j] < mid and labels[j] == 1):
+                    loss += weights[j]
+            if(loss < min_loss):
+                min_loss = loss
+                threshold = mid
+        #check thresholds in dimension 1
+        for i in range(0, len(dim_1_data) - 1):
+            if(i < one_size - 1):
+                mid = (dim_1_data[i] + dim_1_data[i+1])/2.0
+            elif(i == one_size - 1):
+                continue
+            elif(i >= one_size):
+                mid = dim_1_data[i]
+            loss = 0
+            for j in range(0, len(dim_1_data)):
+                if(dim_1_data[j] >= mid and labels[j] == -1):
+                    loss += weights[j]
+                elif(dim_1_data[j] < mid and labels[j] == 1):
+                    loss += weights[j]
+            if(loss < min_loss):
+                min_loss = loss
+                threshold = mid
+                dimension_flag = 1
+        
+
+        self.dimension = dimension_flag
+
+        # The threshold in that dimension
+        # May be midpoints between datapoints or the boundaries -1.0, 1.0
+        self.threshold = threshold
+
+        # The predicted sign when the datapoint's feature in that dimension
+        # is greater than the threshold
+        # Either +1 or -1
+        self.sign = 1
+
+        pass
+
+
+    def predict(self, data):
+        '''
+        Predicts labels of given datapoints.
+
+        Arguments:
+            data: An ndarray with shape (n, 2). Values in [-1.0, 1.0].
+
+        Returns:
+            prediction: An ndarray with shape (n, ). Values are +1 or -1.
+        '''
+        dimension = self.dimension
+        threshold = self.threshold
+        labels = np.zeros(len(data))
+        dim_data = data[:, dimension]
+        for i in range(0, len(dim_data)):
+            if(dim_data[i] >= threshold):
+                labels[i] = 1
+            else:
+                labels[i] = 0
+        return labels    
+        pass
+
+
+def bagging(data, labels, n_classifiers, n_samples, seed=0):
+    '''
+    Runs Bagging algorithm.
+
+    Arguments:
+        data: An ndarray with shape (n, 2). Values in [-1.0, 1.0].
+        labels: An ndarray with shape (n, ). Values are +1 or -1.
+        n_classifiers: Number of classifiers to construct.
+        n_samples: Number of samples to train each classifier.
+        seed: Random seed for NumPy.
+
+    Returns:
+        classifiers: A list of classifiers.
+    '''
+    classifiers = []
+    n = data.shape[0]
+    data_train = np.zeros((n_samples, 2))
+    label_Train = np.zeros(n_samples)
+    for i in range(n_classifiers):
+        np.random.seed(seed + i)
+        sample_indices = np.random.choice(n, size=n_samples, replace=False)
+
+        # complete the rest of the loop
+    pass
+
+
+def adaboost(data, labels, n_classifiers):
+    '''
+    Runs AdaBoost algorithm.
+
+    Arguments:
+        data: An ndarray with shape (n, 2). Values in [-1.0, 1.0].
+        labels: An ndarray with shape (n, ). Values are +1 or -1.
+        n_classifiers: Number of classifiers to construct.
+
+    Returns:
+        classifiers: A list of classifiers.
+        weights: A list of weights assigned to the classifiers.
+    '''
+    pass
+
+
+if __name__ == '__main__':
+    data, labels = get_dataset_fixed()
+    # You can play with the dataset and your algorithms here
+    classifiers, weights = adaboost(data, labels, 4)
+
+
