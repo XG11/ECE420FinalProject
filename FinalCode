@@ -118,12 +118,12 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         }
 
         //Log.d("randomTag", "Yooooo");
-        InputStream inputStream = getResources().openRawResource(R.raw.svm_model_2);
+        InputStream inputStream = getResources().openRawResource(R.raw.svm_model_final);
 
         // Write the model from raw resource to internal storage (since SVM.load() can't load directly from raw resource)
         FileOutputStream fos = null;
         try {
-            fos = openFileOutput("svm_model_2.xml", MODE_PRIVATE);
+            fos = openFileOutput("svm_model_final.xml", MODE_PRIVATE);
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
@@ -153,13 +153,13 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         }
         //Log.d("randomTag", "Yooooo");
          //Load the saved model from the internal storage
-        svm = SVM.load(getFilesDir() + "/svm_model_2.xml");
-        float[][] array = loadArrayFromAssets("centroids_1.json");
+        svm = SVM.load(getFilesDir() + "/svm_model_final.xml");
+        double[][] array = loadArrayFromAssets("centroids_final.json");
 
         //Log.d("ArraySize", "Rows: " + array.length + ", Columns: " + array[0].length);
         double gamma = svm.getGamma();
         //Log.d("Gamma", "Gamma is" + gamma);
-        centroids = new Mat(array.length, array[0].length, CvType.CV_32F);
+        centroids = new Mat(array.length, array[0].length, CvType.CV_64F);
         //System.out.println("Rows: " + centroids.rows());            // Number of rows
         //System.out.println("Columns: " + centroids.cols());      // Number of columns
         for(int i = 0; i < array.length; i++){
@@ -168,6 +168,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
             }
         }
+
         //Log.d("ArrayElement", "Answer is" + centroids.get(0, 0)[0]);
         // Example of using the model for prediction
         //Mat sample = new Mat(1, 2, CvType.CV_32F);
@@ -233,12 +234,12 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }
         });
         //Adding this code to write JPG IMAGE DATA INTO INTERNAL STORAGE
-        InputStream inputStreamJ = getResources().openRawResource(R.raw.test_image);
+        InputStream inputStreamJ = getResources().openRawResource(R.raw.imge2);
 
         // Write the model from raw resource to internal storage (since SVM.load() can't load directly from raw resource)
         FileOutputStream fosJ = null;
         try {
-            fosJ = openFileOutput("test_image.jpg", MODE_PRIVATE);
+            fosJ = openFileOutput("imge2.jpg", MODE_PRIVATE);
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
@@ -266,25 +267,42 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        Mat image_test = loadImageFromStorage(getFilesDir() + "/test_image.jpg");
+        /*
+        Mat image_test = loadImageFromStorage(getFilesDir() + "/imge2.jpg");
         Mat grayscaleImage = new Mat();
         Log.d("ImageTestSize", "Rows: " + image_test.rows()+"Columns: "+ image_test.cols());
         Imgproc.cvtColor(image_test, grayscaleImage, Imgproc.COLOR_BGR2GRAY);
         Mat descriptors = FindDescriptors(grayscaleImage);
         Log.d("DescriptorTest", "Rows: " + descriptors.rows()+"Columns: "+ descriptors.cols());
+
+        for(int i = 0; i < 128; i++){
+            Log.d("Descriptor1", "d is" + descriptors.get(0, i)[0]);
+        }
+
         Mat vocab = Vocab(descriptors, centroids);
+        Mat vocabFloat32 = new Mat();
+        vocab.convertTo(vocabFloat32, CvType.CV_32F);
+
+        for(int i = 0; i < vocabFloat32.cols(); i++){
+            Log.d("HistValue", "V is" + i + " " + vocab.get(0, i)[0]);
+        }
+
+        //Log.d("Vocab dimensions", "rows" + vocab.rows() + "cols" + vocab.cols());
         //LOAD_IN_ON_CREATE
-        //SVM svm = SVM.load("svm_model.xml"); //should be done in
+        //SVM svm = SVM.load("svm_model_2.xml"); //should be done in
+        float[] label = new float[1];
+        Mat result = new Mat();
+        svm.predict(vocabFloat32, result);
+        result.get(0, 0, label);  // Get the first prediction label from the result Mat
 
-        float label = svm.predict(vocab);
-
-        if(label == 1){
+        if(label[0] == 1){
             Log.d("Label", "Success");
         }
-        else{
+        else if(label[0] == 0){
+            //Log.d("Answer", "" + label[0]);
             Log.d("Label", "Fail");
         }
-
+        */
 
          //Setup OpenCV Camera View
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.opencv_camera_preview);
@@ -297,7 +315,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         mOpenCvCameraView.setCvCameraViewListener(this);
     }
     //Adding Load Method for Array here
-    public float[][] loadArrayFromAssets(String filename) {
+    public double[][] loadArrayFromAssets(String filename) {
         AssetManager assetManager = getAssets();
        String json = "";
         try {
@@ -313,7 +331,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
             // Parse the JSON string into an array
             Gson gson = new Gson();
-            float[][] arr = gson.fromJson(json, float[][].class);
+            double[][] arr = gson.fromJson(json, double[][].class);
             //double[][] arr = new double[3][4];
             // Return the array
             //return arrayWrapper.array;
@@ -462,7 +480,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             Log.d("Capture", "Captured");
             isProcessing = true;
             image_captured = mGray.clone();
-            Log.d("ImageSize", "Rows: " + image_captured.rows() + "Columns: " + image_captured.cols());
+            //Log.d("ImageSize", "Rows: " + image_captured.rows() + "Columns: " + image_captured.cols());
 
             Mat descriptors = FindDescriptors(image_captured);
             //Get CENTROIDS ARRAY FROM PYTHON CODE TRAINING
@@ -470,12 +488,17 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             Mat vocab = Vocab(descriptors, centroids);
             //LOAD_IN_ON_CREATE
             //SVM svm = SVM.load("svm_model.xml"); //should be done in
-
-            float label = svm.predict(vocab);
+            Mat vocabFloat32 = new Mat();
+            vocab.convertTo(vocabFloat32, CvType.CV_32F);
+            float[] label = new float[1];
+            Mat result = new Mat();
+            svm.predict(vocabFloat32, result);
+            result.get(0, 0, label);
+            //float label = svm.predict(vocabFloat32);
             //float label = 0;
             //final String result = "";
             //float label = 0;
-            if (label == 1){
+            if (label[0] == 1){
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -484,7 +507,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     }
                 });
             }
-            else if(label == 0){
+            else if(label[0] == 0){
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -526,7 +549,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     }
     //method for finding keypoint descriptors in image
     public Mat FindDescriptors(Mat image){
-        SIFT sift = SIFT.create();
+        SIFT sift = SIFT.create(0, 3, 0.04f, 10, 1.6f);
         MatOfKeyPoint keypoints = new MatOfKeyPoint();
         Mat descriptors = new Mat();
         sift.detectAndCompute(image, new Mat(), keypoints, descriptors);
@@ -538,14 +561,15 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
     //method for Kmeans getting vocabulary of words
     public Mat Vocab(Mat descriptors, Mat centroids) {
-        Mat histogram = Mat.zeros(1, centroids.rows(), CvType.CV_32F);  // Initialize histogram
+        Mat histogram = Mat.zeros(1, centroids.rows(), CvType.CV_64F);  // Initialize histogram
 
         for (int i = 0; i < descriptors.rows(); i++) {
             // Extract the descriptor row
-            Mat descriptor = descriptors.row(i);
-
+            Mat descriptorsFloat64 = new Mat();
+            descriptors.convertTo(descriptorsFloat64, CvType.CV_64F);
+            Mat descriptor = descriptorsFloat64.row(i);
             // Initialize a matrix to store distances
-            Mat distances = new Mat(centroids.rows(), 1, CvType.CV_32F);
+            Mat distances = new Mat(centroids.rows(), 1, CvType.CV_64F);
 
             // Compute Euclidean distances between the descriptor and each centroid
             for (int j = 0; j < centroids.rows(); j++) {
@@ -553,10 +577,16 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 // Using norm instead of manual sqrt
                 distances.put(j, 0, Core.norm(descriptor, centroids.row(j), Core.NORM_L2));
             }
-
+            /*
+            if(i == 0){
+                for(int l = 0; l < centroids.rows(); l++){
+                    Log.d("Distance", "Distance is" + distances.get(l, 0)[0]);
+                }
+            }
+             */
             // Find the closest centroid (smallest distance)
-            int clusterNumber = (int)Core.minMaxLoc(distances).minLoc.x;  // Get the index of the smallest value
-
+            int clusterNumber = (int)Core.minMaxLoc(distances).minLoc.y;  // Get the index of the smallest value
+            //Log.d("Cluster Number", "Cluster is" + clusterNumber);
             // Increment the count for the selected cluster
             histogram.put(0, clusterNumber, histogram.get(0, clusterNumber)[0] + 1);
         }
