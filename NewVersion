@@ -1,0 +1,701 @@
+package com.ece420.lab7;
+
+import static org.opencv.core.CvType.CV_32S;
+
+import android.app.Activity;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.Manifest;
+import android.os.Bundle;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import android.util.Log;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.content.res.Resources;
+
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
+//import org.opencv.android.BaseLoaderCallback;
+
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
+
+//import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfKeyPoint;
+import org.opencv.core.Point;
+import org.opencv.core.Rect2d;
+
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
+//import org.opencv.tracking.TrackerKCF;
+
+import org.opencv.features2d.SIFT;
+import org.opencv.ml.SVM;
+
+import android.content.Context;
+import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import android.content.res.AssetManager;
+import com.google.gson.Gson;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+import org.opencv.core.Mat;
+
+public class MainActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2 {
+
+    private static final String TAG = "MainActivity";
+
+    // UI Variables
+    private Button controlButton;
+    private Button ResetButton;
+    //private SeekBar colorSeekbar;
+    //private SeekBar widthSeekbar;
+    //private SeekBar heightSeekbar;
+    //private TextView widthTextview;
+    //private TextView heightTextview;
+    private TextView testText;
+    // Declare OpenCV based camera view base
+    private CameraBridgeViewBase mOpenCvCameraView;
+    // Camera size
+    private int myWidth;
+    private int myHeight;
+
+    // Mat to store RGBA and Grayscale camera preview frame
+    private Mat mRgba;
+    private Mat mGray;
+
+    //Adding flag to indicate button pressed
+    private boolean captured;
+    private boolean recaptured;
+    //image captured
+    private Mat image_captured;
+    private boolean isProcessing;
+    // KCF Tracker variables
+    //private TrackerKCF myTracker;
+    //private Rect2d myROI = new Rect2d(0,0,0,0);
+    private SVM svm;
+    private SVM svm_1;
+    private Mat centroids;
+    private Mat centroids_1;
+    //private int myROIWidth = 70;
+    //private int myROIHeight = 70;
+    //private Scalar myROIColor = new Scalar(0,0,0);
+    //private int tracking_flag = -1;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(R.layout.activity_main);
+        super.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
+        // Request User Permission on Camera
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED){
+            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.CAMERA}, 1);}
+
+        // OpenCV Loader and Avoid using OpenCV Manager
+//        if (!OpenCVLoader.initDebug()) {
+//            Log.e(this.getClass().getSimpleName(), "  OpenCVLoader.initDebug(), not working.");
+//        } else {
+//            Log.d(this.getClass().getSimpleName(), "  OpenCVLoader.initDebug(), working.");
+//        }
+        if (OpenCVLoader.initLocal()) {
+            Log.i(TAG, "OpenCV loaded successfully");
+        } else {
+            Log.e(TAG, "OpenCV initialization failed!");
+        }
+
+        //Log.d("randomTag", "Yooooo");
+        InputStream inputStream = getResources().openRawResource(R.raw.svm_model_final);
+        //InputStream inputStream1 = getResources().openRawResource(R.raw.svm_model_fh);
+        // Write the model from raw resource to internal storage (since SVM.load() can't load directly from raw resource)
+        FileOutputStream fos = null;
+        //FileOutputStream fos1 = null;
+        try {
+            fos = openFileOutput("svm_model_final.xml", MODE_PRIVATE);
+            //fos1 = openFileOutput("svm_model_fh.xml", MODE_PRIVATE);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        byte[] buffer = new byte[1024];
+        //byte[] buffer1 = new byte[1024];
+        int length;
+        //int length1;
+        while (true) {
+            try {
+                if (!((length = inputStream.read(buffer)) > 0)) break;
+                //if (!((length1 = inputStream1.read(buffer)) > 0)) break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                fos.write(buffer, 0, length);
+                //fos1.write(buffer1, 0, length1);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try {
+            fos.close();
+            //fos1.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            inputStream.close();
+            //inputStream1.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        //Log.d("randomTag", "Yooooo");
+         //Load the saved model from the internal storage
+        svm = SVM.load(getFilesDir() + "/svm_model_final.xml");
+        //////PASTING INPUT STREAM CODE HERE
+        /*
+        inputStream = getResources().openRawResource(R.raw.svm_model_fh);
+        try {
+            fos = openFileOutput("svm_model_fh.xml", MODE_PRIVATE);
+            //fos1 = openFileOutput("svm_model_fh.xml", MODE_PRIVATE);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        byte[] buffer_1 = new byte[1024];
+        //byte[] buffer1 = new byte[1024];
+        int length_1;
+        //int length1;
+        while (true) {
+            try {
+                if (!((length_1 = inputStream.read(buffer_1)) > 0)) break;
+                //if (!((length1 = inputStream1.read(buffer)) > 0)) break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                fos.write(buffer_1, 0, length_1);
+                //fos1.write(buffer1, 0, length1);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try {
+            fos.close();
+            //fos1.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            inputStream.close();
+            //inputStream1.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        */
+
+
+
+
+
+
+
+
+
+
+
+
+        //////////INPUTSTREAMCODEENDS
+        svm_1 = SVM.load(getFilesDir() + "/svm_model_fh.xml");
+        double[][] array = loadArrayFromAssets("centroids_final.json");
+        double[][] array_1 = loadArrayFromAssets("centroids_fh.json");
+        //Log.d("ArraySize", "Rows: " + array.length + ", Columns: " + array[0].length);
+        //double gamma = svm.getGamma();
+        //Log.d("Gamma", "Gamma is" + gamma);
+        centroids = new Mat(array.length, array[0].length, CvType.CV_64F);
+        centroids_1 = new Mat(array.length, array[0].length, CvType.CV_64F);
+        //System.out.println("Rows: " + centroids.rows());            // Number of rows
+        //System.out.println("Columns: " + centroids.cols());      // Number of columns
+        for(int i = 0; i < array.length; i++){
+            for(int j = 0; j < array[0].length; j++){
+                centroids.put(i, j, array[i][j]);
+                centroids_1.put(i, j, array_1[i][j]);
+            }
+        }
+
+        //Log.d("ArrayElement", "Answer is" + centroids.get(0, 0)[0]);
+        // Example of using the model for prediction
+        //Mat sample = new Mat(1, 2, CvType.CV_32F);
+        //sample.put(0, 0, 2.5, 3.5);  // Example feature vector
+
+
+//        // Setup color seek bar
+//        colorSeekbar = (SeekBar) findViewById(R.id.colorSeekBar);
+//        colorSeekbar.setProgress(50);
+//        setColor(50);
+//        colorSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener()
+//        {
+//            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
+//            {
+//                setColor(progress);
+//            }
+//            public void onStartTrackingTouch(SeekBar seekBar) {}
+//            public void onStopTrackingTouch(SeekBar seekBar) {}
+//        });
+
+        // Setup width seek bar
+//        widthTextview = (TextView) findViewById(R.id.widthTextView);
+//        widthSeekbar = (SeekBar) findViewById(R.id.widthSeekBar);
+//        widthSeekbar.setProgress(myROIWidth - 20);
+//        widthSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener()
+//        {
+//            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
+//            {
+//                // Only allow modification when not tracking
+//                if(tracking_flag == -1) {
+//                    myROIWidth = progress + 20;
+//                }
+//            }
+//            public void onStartTrackingTouch(SeekBar seekBar) {}
+//            public void onStopTrackingTouch(SeekBar seekBar) {}
+//        });
+
+        // Setup width seek bar
+//        heightTextview = (TextView) findViewById(R.id.heightTextView);
+//        heightSeekbar = (SeekBar) findViewById(R.id.heightSeekBar);
+//        heightSeekbar.setProgress(myROIHeight - 20);
+//        heightSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener()
+//        {
+//            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
+//            {
+//                // Only allow modification when not tracking
+//                if(tracking_flag == -1) {
+//                    myROIHeight = progress + 20;
+//                }
+//            }
+//            public void onStartTrackingTouch(SeekBar seekBar) {}
+//            public void onStopTrackingTouch(SeekBar seekBar) {}
+//        });
+
+        // Setup control button
+        controlButton = (Button)findViewById((R.id.controlButton));
+        ResetButton = (Button)findViewById((R.id.ResetButton));
+        //testText = (TextView)findViewById((R.id.testText));
+        controlButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                captured = true;
+
+            }
+        });
+        ResetButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                recaptured = true;
+            }
+        });
+
+        //Adding this code to write JPG IMAGE DATA INTO INTERNAL STORAGE
+        /*
+        InputStream inputStreamJ = getResources().openRawResource(R.raw.imge2);
+
+        // Write the model from raw resource to internal storage (since SVM.load() can't load directly from raw resource)
+        FileOutputStream fosJ = null;
+        try {
+            fosJ = openFileOutput("imge2.jpg", MODE_PRIVATE);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        byte[] bufferJ = new byte[1024];
+        int lengthJ;
+        while (true) {
+            try {
+                if (!((lengthJ = inputStreamJ.read(bufferJ)) > 0)) break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                fosJ.write(bufferJ, 0, lengthJ);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try {
+            fosJ.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            inputStreamJ.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        /*
+        Mat image_test = loadImageFromStorage(getFilesDir() + "/imge2.jpg");
+        Mat grayscaleImage = new Mat();
+        Log.d("ImageTestSize", "Rows: " + image_test.rows()+"Columns: "+ image_test.cols());
+        Imgproc.cvtColor(image_test, grayscaleImage, Imgproc.COLOR_BGR2GRAY);
+        Mat descriptors = FindDescriptors(grayscaleImage);
+        Log.d("DescriptorTest", "Rows: " + descriptors.rows()+"Columns: "+ descriptors.cols());
+
+        for(int i = 0; i < 128; i++){
+            Log.d("Descriptor1", "d is" + descriptors.get(0, i)[0]);
+        }
+
+        Mat vocab = Vocab(descriptors, centroids);
+        Mat vocabFloat32 = new Mat();
+        vocab.convertTo(vocabFloat32, CvType.CV_32F);
+
+        for(int i = 0; i < vocabFloat32.cols(); i++){
+            Log.d("HistValue", "V is" + i + " " + vocab.get(0, i)[0]);
+        }
+
+        //Log.d("Vocab dimensions", "rows" + vocab.rows() + "cols" + vocab.cols());
+        //LOAD_IN_ON_CREATE
+        //SVM svm = SVM.load("svm_model_2.xml"); //should be done in
+        float[] label = new float[1];
+        Mat result = new Mat();
+        svm.predict(vocabFloat32, result);
+        result.get(0, 0, label);  // Get the first prediction label from the result Mat
+
+        if(label[0] == 1){
+            Log.d("Label", "Success");
+        }
+        else if(label[0] == 0){
+            //Log.d("Answer", "" + label[0]);
+            Log.d("Label", "Fail");
+        }
+        */
+
+         //Setup OpenCV Camera View
+        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.opencv_camera_preview);
+        // Use main camera with 0 or front camera with 1
+        mOpenCvCameraView.setCameraIndex(0);
+
+        mOpenCvCameraView.setVisibility(CameraBridgeViewBase.VISIBLE);
+        mOpenCvCameraView.setCameraPermissionGranted();
+        // Force camera resolution, ignored since OpenCV automatically select best ones
+        mOpenCvCameraView.setCvCameraViewListener(this);
+    }
+    //Adding Load Method for Array here
+    public double[][] loadArrayFromAssets(String filename) {
+        AssetManager assetManager = getAssets();
+       String json = "";
+        try {
+            // Read the file into a string
+            BufferedReader reader = new BufferedReader(new InputStreamReader(assetManager.open(filename)));
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+            }
+            json = stringBuilder.toString();
+            reader.close();
+
+            // Parse the JSON string into an array
+            Gson gson = new Gson();
+            double[][] arr = gson.fromJson(json, double[][].class);
+            //double[][] arr = new double[3][4];
+            // Return the array
+            //return arrayWrapper.array;
+            return arr;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+        //double[][] arr = new double[3][4];
+        //return arr;
+    }
+
+    // Helper class to represent the JSON structure
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.enableView();
+
+//        if (!OpenCVLoader.initDebug()) {
+//            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+//            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION, this, mLoaderCallback);
+//        } else {
+//            Log.d(TAG, "OpenCV library found inside package. Using it!");
+//            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+//        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+
+//    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+//        @Override
+//        public void onManagerConnected(int status) {
+//            switch (status) {
+//                case LoaderCallbackInterface.SUCCESS:
+//                    Log.i(TAG, "OpenCV loaded successfully");
+//                    mOpenCvCameraView.enableView();
+//                    break;
+//                default:
+//                    super.onManagerConnected(status);
+//                    break;
+//            }
+//        }
+//    };
+
+    // Helper Function to map single integer to color scalar
+    // https://www.particleincell.com/2014/colormap/
+    public void setColor(int value) {
+        double a=(1-(double)value/100)/0.2;
+        int X=(int)Math.floor(a);
+        int Y=(int)Math.floor(255*(a-X));
+        double newColor[] = {0,0,0};
+        switch(X)
+        {
+            case 0:
+                // r=255;g=Y;b=0;
+                newColor[0] = 255;
+                newColor[1] = Y;
+                break;
+            case 1:
+                // r=255-Y;g=255;b=0
+                newColor[0] = 255-Y;
+                newColor[1] = 255;
+                break;
+            case 2:
+                // r=0;g=255;b=Y
+                newColor[1] = 255;
+                newColor[2] = Y;
+                break;
+            case 3:
+                // r=0;g=255-Y;b=255
+                newColor[1] = 255-Y;
+                newColor[2] = 255;
+                break;
+            case 4:
+                // r=Y;g=0;b=255
+                newColor[0] = Y;
+                newColor[2] = 255;
+                break;
+            case 5:
+                // r=255;g=0;b=255
+                newColor[0] = 255;
+                newColor[2] = 255;
+                break;
+        }
+        //myROIColor.set(newColor);
+        return;
+    }
+
+    // OpenCV Camera Functionality Code
+    @Override
+    public void onCameraViewStarted(int width, int height) {
+        Log.d(TAG, "onCameraViewStarted");
+        mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mGray = new Mat(height, width, CvType.CV_8UC1);
+        myWidth = width;
+        myHeight = height;
+//        myROI = new Rect2d(myWidth / 2 - myROIWidth / 2,
+//                            myHeight / 2 - myROIHeight / 2,
+//                            myROIWidth,
+//                            myROIHeight);
+    }
+
+    @Override
+    public void onCameraViewStopped() {
+        Log.d(TAG, "onCameraViewStopped");
+        mRgba.release();
+        mGray.release();
+    }
+
+    @Override
+    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        Log.d("Enter", "Enter Camera Frame");
+        if(isProcessing){
+            return mRgba;
+        }
+//        runOnUiThread(new Runnable() {
+//            @Override
+//            public void run() {
+//                TextView testText = findViewById(R.id.testText);
+//                testText.setText("");
+//            }
+//        });
+        // Timer
+        //long start = Core.getTickCount();
+        // Grab camera frame in rgba and grayscale format
+        mRgba = inputFrame.rgba();
+        // Grab camera frame in gray format
+        mGray = inputFrame.gray();
+        if(captured) {
+            Log.d("Capture", "Captured");
+            isProcessing = true;
+            image_captured = mGray.clone();
+            //Log.d("ImageSize", "Rows: " + image_captured.rows() + "Columns: " + image_captured.cols());
+
+            Mat descriptors = FindDescriptors(image_captured);
+            //Get CENTROIDS ARRAY FROM PYTHON CODE TRAINING
+            Log.d("ArraySize", "Rows: " + descriptors.rows()+"Columns: "+ descriptors.cols());
+            Mat vocab = Vocab(descriptors, centroids);
+            Mat vocab1 = Vocab(descriptors, centroids_1);
+            //LOAD_IN_ON_CREATE
+            //SVM svm = SVM.load("svm_model.xml"); //should be done in
+            Mat vocabFloat32 = new Mat();
+            //Mat vocabFloat32_1 = new Mat();
+            vocab.convertTo(vocabFloat32, CvType.CV_32F);
+            //vocab.convertTo(vocabFloat32_1, CvType.CV_32F);
+            float[] label = new float[1];
+            //float[] label_1 = new float[1];
+            Mat result = new Mat();
+            Mat result_1 = new Mat();
+            svm.predict(vocabFloat32, result);
+            //svm_1.predict(vocabFloat32_1, result_1);
+            result.get(0, 0, label);
+            //result_1.get(0, 0, label_1);
+            //float label = svm.predict(vocabFloat32);
+            //float label = 0;
+            //final String result = "";
+            //float label = 0;
+            if (label[0] == 1){
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        TextView testText = findViewById(R.id.testText);
+                        testText.setText("The Alma Mater, a bronze statue by sculptor Lorado Taft, is a beloved symbol of the University of Illinois Urbana-Champaign. The 10,000-pound statue depicts a mother-figure wearing academic robes and flanked by two attendant figures representing \"Learning\" and \"Labor\", after the university's motto \"Learning and Labor.\"[1] Sited at the corner of Green and Wright Streets at the heart of the campus, the statue is an iconic figure for the university and a popular backdrop for student graduation photos.[2] It is appreciated for its romantic, heraldic overtones and warmth of pose. The statue was removed from its site at the entrance to the university for restoration in 2012 and was returned to its site in the spring of 2014.");
+                    }
+                });
+            }
+            else if(label[0] == 0){
+                /*
+                if(label_1[0] == 1){
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            TextView testText = findViewById(R.id.testText);
+                            testText.setText("Foellinger Auditorium Found");
+                        }
+                    });
+                }
+                */
+
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            TextView testText = findViewById(R.id.testText);
+                            testText.setText("Object Not Detected");
+                        }
+                    });
+
+            }
+
+            try {
+                Thread.sleep(5000);  // Wait for 2 seconds
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+
+
+            // Reset the text
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    TextView testText = findViewById(R.id.testText);
+                    testText.setText("");
+                }
+            });
+            captured = false;
+            isProcessing = false;
+            //recaptured = false;
+        }
+//
+        return mRgba;
+    }
+    //method for loading image from PYTHON CODE!
+    public Mat loadImageFromStorage(String filePath){
+        Mat mat = Imgcodecs.imread(filePath);
+        if (mat.empty()){
+            Log.e("Image Load", "Faield to load image: " + filePath);
+        }
+        else{
+            Log.d("ImageSuccess", "Rows: " + mat.rows() + "Cols: " + mat.cols());
+        }
+        return mat;
+    }
+    //method for finding keypoint descriptors in image
+    public Mat FindDescriptors(Mat image){
+        SIFT sift = SIFT.create(0, 3, 0.04f, 10, 1.6f);
+        MatOfKeyPoint keypoints = new MatOfKeyPoint();
+        Mat descriptors = new Mat();
+        sift.detectAndCompute(image, new Mat(), keypoints, descriptors);
+        return descriptors;
+    }
+    //extract centroids vector by importing from python
+
+    //extract svm model from python using xml file
+
+    //method for Kmeans getting vocabulary of words
+    public Mat Vocab(Mat descriptors, Mat centroids) {
+        Mat histogram = Mat.zeros(1, centroids.rows(), CvType.CV_64F);  // Initialize histogram
+
+        for (int i = 0; i < descriptors.rows(); i++) {
+            // Extract the descriptor row
+            Mat descriptorsFloat64 = new Mat();
+            descriptors.convertTo(descriptorsFloat64, CvType.CV_64F);
+            Mat descriptor = descriptorsFloat64.row(i);
+            // Initialize a matrix to store distances
+            Mat distances = new Mat(centroids.rows(), 1, CvType.CV_64F);
+
+            // Compute Euclidean distances between the descriptor and each centroid
+            for (int j = 0; j < centroids.rows(); j++) {
+                // Compute Euclidean distance between the descriptor and the centroid
+                // Using norm instead of manual sqrt
+                distances.put(j, 0, Core.norm(descriptor, centroids.row(j), Core.NORM_L2));
+            }
+            /*
+            if(i == 0){
+                for(int l = 0; l < centroids.rows(); l++){
+                    Log.d("Distance", "Distance is" + distances.get(l, 0)[0]);
+                }
+            }
+             */
+            // Find the closest centroid (smallest distance)
+            int clusterNumber = (int)Core.minMaxLoc(distances).minLoc.y;  // Get the index of the smallest value
+            //Log.d("Cluster Number", "Cluster is" + clusterNumber);
+            // Increment the count for the selected cluster
+            histogram.put(0, clusterNumber, histogram.get(0, clusterNumber)[0] + 1);
+        }
+        Scalar sum = Core.sumElems(histogram);
+        Core.divide(histogram, new Scalar(sum.val[0]), histogram);
+        // Compute the L2 norm (Euclidean norm)
+        double norm = Core.norm(histogram, Core.NORM_L2);
+// Normalize the histogram by dividing each element by the norm
+        Core.divide(histogram, new Scalar(norm + 1e-6), histogram); // Avoid division by zero
+        return histogram;  // Return the final histogram
+    }
+}
